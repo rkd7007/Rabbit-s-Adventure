@@ -1,0 +1,1501 @@
+﻿#include "MyImage.h"
+#include "DSpriteManager.h"
+#include "MyCharacter.h"
+#include <stdlib.h>
+#include <time.h>
+#include <stdio.h>
+#include <Windows.h>
+#pragma comment(lib, "winmm.lib")
+#include <MMSystem.h>
+#include "Mmsystem.h"
+#include "Digitalv.h"
+
+//사운드
+MCI_OPEN_PARMS m_mciOpenParms;
+MCI_PLAY_PARMS m_mciPlayParms;
+DWORD m_dwDeviceID;
+MCI_OPEN_PARMS mciOpen;
+MCI_PLAY_PARMS mciPlay;
+
+int dwID;
+
+Graphics* g_BackBuffer;
+Graphics* g_MainBuffer;
+Bitmap* g_Bitmap;
+
+//시작, 나가기 UI 이미지
+CMyImage PlayBar;
+CMyImage ExitBar;
+
+RECT PLAY = { 430, 240, 680, 300 };
+RECT EXIT = { 430, 500, 680, 560 };
+
+//맵1 배경 이미지
+CMyImage g_BackImage;
+
+//맵2 배경 이미지
+CMyImage g_CounterImage;
+
+//작은 손님 이미지
+CMyImage Hiper;
+CMyImage Flower;
+CMyImage Squid;
+CMyImage Woman;
+CMyImage Turtle;
+CMyImage Fish;
+
+//손님 이미지
+PEOPLE g_People;
+
+//여섯개의 물건
+ITEM g_item[6];
+
+//옳은 물건을 선택했는지 아닌지를 판단
+bool ItemClick[6] = { false, false, false, false, false, false };
+
+//옳은 물건을 선택했으면 1~5번째 손님 그리기
+bool GoodPeo[5] = { false, false, false, false, false };
+
+//어떤 손님을 출력해야하는지 값을 받아 판단하는 전역변수
+int PrintPeoPle[5];
+
+//만족, 불만족 카운터
+int GoodPeople;
+int BadPeople;
+
+//스테이지
+bool stage_1 = true;
+bool stage_2 = false;
+bool stage_3 = false;
+
+
+
+//맞춘 것도 틀린 것도 없이 화면을 나갔으면 BadPeople를 증가시키게 하기 위한 것
+
+bool notGood = false;
+
+bool notBad = false;
+
+
+
+//마지막 손님이 출력 되었는가를 판단
+
+bool GoodPeo_4 = false;
+
+bool fullGoodPeo[3] = { false, false, false };
+
+
+
+//게임 시작 눌렀는지
+
+bool g_PLAY = false;
+
+
+
+//물건 RECT l t r b
+
+RECT Item1 = { 22, 26, 150, 210 };
+
+RECT Item2 = { 20, 235, 150, 405 };
+
+RECT Item3 = { 17, 438, 153, 555 };
+
+RECT Item4 = { 910, 46, 1065, 165 };
+
+RECT Item5 = { 910, 217, 1065, 345 };
+
+RECT Item6 = { 910, 391, 1065, 515 };
+
+
+
+//캐릭터 이미지
+
+CHARACTER g_mychar;
+
+
+
+DWORD g_duration = 0; //현재까지 흐른 시간을 보여주는 전역변수
+
+DWORD g_Interval = 0; //시간 값을 저장할 전역변수
+
+DWORD g_p = 0;
+
+DWORD g_jump = 0;
+
+
+
+//랜덤으로 받을 값을 저장하는 변수
+
+int num;
+
+//아이템의 x, y, w, h 크기
+
+int i_x, i_y, i_w, i_h;
+
+//손님의 x, y, w, h 크기
+
+int X, Y, W, H;
+
+
+
+//캐릭터 이동방향
+
+bool RIGHT = true; //시작시 오른쪽으로 뛰는 모션이 나오도록 true로 해놓음
+
+bool LEFT = false;
+
+//편의점에 들어갔냐, 안 들어갔냐
+
+bool Input = false;
+
+//물건이 화면을 나갔냐, 안 나갔냐
+
+bool OutItem = false;
+
+
+
+void OnUpdate(HWND hWnd, DWORD tick);
+
+void CreateBuffer(HWND hWnd, HDC hDC);
+
+void ReleaseBuffer(HWND hWnd, HDC hDC);
+
+
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam);
+
+
+
+int APIENTRY WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance,
+
+	LPSTR lpCmdLine, int nCmdShow)
+
+{
+
+	WNDCLASS   wndclass;
+
+
+
+	wndclass.style = CS_HREDRAW | CS_VREDRAW;
+
+	wndclass.lpfnWndProc = WndProc;
+
+	wndclass.cbClsExtra = 0;
+
+	wndclass.cbWndExtra = 0;
+
+	wndclass.hInstance = hInstance;
+
+	wndclass.hIcon = NULL;
+
+	wndclass.hCursor = LoadCursor(NULL, IDC_ARROW);
+
+	wndclass.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
+
+	wndclass.lpszMenuName = NULL;
+
+	wndclass.lpszClassName = "API";
+
+
+
+	if (RegisterClass(&wndclass) == 0)
+
+	{
+
+		return 0;
+
+	}
+
+
+
+	//ClassName, GmaeName, 일반적인 윈도우 형태로 만들어라, 창 생성시 x위치, y위치, 창 x크기, y크기, 메뉴유무, 툴바유무 등)
+
+	HWND hwnd = CreateWindow("API", "편의점 카운터 게임", WS_OVERLAPPEDWINDOW, 400, 100, 1100, 800, NULL, NULL, hInstance, NULL);
+
+
+
+	if (hwnd == NULL)
+
+	{
+
+		return 0;
+
+	}
+
+
+
+	HDC hDC = GetDC(hwnd);
+
+
+
+	CreateBuffer(hwnd, hDC);
+
+
+
+	//시작, 나가기 바 이미지를 가져온다
+
+	PlayBar.Load("./Data/Image/play.png");
+
+	ExitBar.Load("./Data/Image/exit.png");
+
+
+
+	//맵1 배경 이미지를 가져온다
+
+	g_BackImage.Load("./Data/Image/Convenience store.png");
+
+
+
+	//맵2 배경 이미지를 가져온다
+
+	g_CounterImage.Load("./Data/Image/main1.png");
+
+
+
+	//손님 이미지를 가져온다
+
+	g_People.LoadImage("./Data/Image/people.png");
+
+
+
+	//여섯개의 물건 이미지를 가져온다
+
+	g_item[0].LoadImage("./Data/Image/bread.png"); //빵	
+
+	g_item[1].LoadImage("./Data/Image/Burger.png"); //햄버거	
+
+	g_item[2].LoadImage("./Data/Image/juice.png"); //주스	
+
+	g_item[3].LoadImage("./Data/Image/meat.png"); //고기
+
+	g_item[4].LoadImage("./Data/Image/milk.png"); //우유
+
+	g_item[5].LoadImage("./Data/Image/snack.png"); //과자
+
+
+
+	//작은 손님 이미지를 가져온다
+
+	Hiper.Load("./Data/Image/people_1.png"); //히퍼
+
+	Flower.Load("./Data/Image/people_2.png"); //꽃
+
+	Squid.Load("./Data/Image/people_3.png"); //오징어
+
+	Woman.Load("./Data/Image/people_4.png"); //빨간 여자
+
+	Turtle.Load("./Data/Image/people_5.png"); //구름탄 거북이
+
+	Fish.Load("./Data/Image/people_6.png"); //물고기
+
+
+
+	//주인공 오른쪽 이미지를 가져온다
+
+	g_mychar.LoadImage("./Data/Image/Char3.png"); //원래 : g_myimage.Load("./Data/Image/Char.png"​);
+
+
+
+	ShowWindow(hwnd, nCmdShow);
+
+	UpdateWindow(hwnd);
+
+
+
+	//주인공 애니메이션
+
+	g_mychar.LoadAniinfo("ani_data_01.txt");
+
+
+
+	//사운드
+
+	mciOpen.lpstrElementName = "main.mp3"; //메인
+
+	mciOpen.lpstrDeviceType = "mpegvideo";
+
+	mciSendCommand(NULL, MCI_OPEN, MCI_OPEN_ELEMENT | MCI_OPEN_TYPE, (DWORD)(LPVOID)& mciOpen);
+
+	dwID = mciOpen.wDeviceID;
+
+	mciSendCommand(dwID, MCI_PLAY, MCI_DGV_PLAY_REPEAT, (DWORD)(LPVOID)& m_mciPlayParms);
+
+
+
+	MSG msg;
+
+
+
+	DWORD tick = GetTickCount();
+
+	g_mychar.speed = 130; //주인공 스피드
+
+
+
+	while (1)
+
+	{
+
+		//윈도우 메세지가 있을경우 메세지를 처리한다.
+
+		if (PeekMessage(&msg, NULL, 0, 0, PM_REMOVE))
+
+		{
+
+			if (msg.message == WM_QUIT) break;
+
+
+
+			TranslateMessage(&msg);
+
+			DispatchMessage(&msg);
+
+		}
+
+		else //메세지가 없을 경우 게임 루프를 실행한다. -> 게임부분
+
+		{
+
+			char buff[128];
+
+
+
+			DWORD curTick = GetTickCount();
+
+			DWORD deltatime = curTick - tick; //curTick > tick
+
+
+
+			OnUpdate(hwnd, deltatime);
+
+			tick = curTick;
+
+
+
+			g_duration += deltatime;
+
+
+
+			g_MainBuffer->DrawImage(g_Bitmap, 0, 0);
+
+		}
+
+	}
+
+	ReleaseBuffer(hwnd, hDC);
+
+
+
+	return 0;
+
+}
+
+
+
+LRESULT CALLBACK WndProc(HWND hWnd, UINT msg, WPARAM wParam, LPARAM lParam)
+
+{
+
+	HDC hdc;
+
+	PAINTSTRUCT ps;
+
+
+
+	switch (msg)
+
+	{
+
+	case WM_KEYDOWN:
+
+	{
+
+		g_duration = 0; //현재까지 누적된 시간을 보여주는 것
+
+	}
+
+	break;
+
+	case WM_CREATE:
+
+		break;
+
+	case WM_DESTROY:
+
+		PostQuitMessage(0);
+
+		break;
+
+	case WM_LBUTTONDOWN: //왼쪽 마우스 클릭
+
+		int xPos = LOWORD(lParam); //마우스를 누른 x좌표 값 저장
+
+		int yPos = HIWORD(lParam); //마우스를 누른 y좌표 값 저장
+
+		//만약 맵2이고 마우스를 눌렀으면
+
+		if (msg == WM_LBUTTONDOWN && Input == true)
+
+		{
+
+			HDC h_dc = GetDC(hWnd); //마우스 x, y좌표 불러옴
+
+			//빵
+
+			if ((Item1.left <= xPos) && (Item1.right >= xPos) && (Item1.top <= yPos) && (Item1.bottom >= yPos))
+
+			{
+
+				if (ItemClick[5] == true)
+
+				{
+
+					sndPlaySoundA("goodclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notGood = true;
+
+					GoodPeople += 1;
+
+
+
+					if (GoodPeople == 1) { GoodPeo[0] = true; PrintPeoPle[0] = 1; }
+
+					if (GoodPeople == 2) { GoodPeo[1] = true; PrintPeoPle[1] = 1; }
+
+					if (GoodPeople == 3) { GoodPeo[2] = true; PrintPeoPle[2] = 1; }
+
+					if (GoodPeople == 4) { GoodPeo[3] = true; PrintPeoPle[3] = 1; }
+
+					if (GoodPeople == 5) { GoodPeo[4] = true; PrintPeoPle[4] = 1; }
+
+				}
+
+				else notGood = false;
+
+				if (ItemClick[5] == false)
+
+				{
+
+					sndPlaySoundA("badclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notBad = true;
+
+					BadPeople += 1;
+
+				}
+
+				else notBad = false;
+
+			}
+
+			//주스
+
+			if ((Item3.left <= xPos) && (Item3.right >= xPos) && (Item3.top <= yPos) && (Item3.bottom >= yPos))
+
+			{
+
+				if (ItemClick[3] == true)
+
+				{
+
+					sndPlaySoundA("goodclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notGood = true;
+
+					GoodPeople += 1;
+
+
+
+					if (GoodPeople == 1) { GoodPeo[0] = true; PrintPeoPle[0] = 2; }
+
+					if (GoodPeople == 2) { GoodPeo[1] = true; PrintPeoPle[1] = 2; }
+
+					if (GoodPeople == 3) { GoodPeo[2] = true; PrintPeoPle[2] = 2; }
+
+					if (GoodPeople == 4) { GoodPeo[3] = true; PrintPeoPle[3] = 2; }
+
+					if (GoodPeople == 5) { GoodPeo[4] = true; PrintPeoPle[4] = 2; }
+
+				}
+
+				else notGood = false;
+
+				if (ItemClick[3] == false)
+
+				{
+
+					sndPlaySoundA("badclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notBad = true;
+
+					BadPeople += 1;
+
+				}
+
+				else notBad = false;
+
+			}
+
+			//햄버거
+
+			if ((Item2.left <= xPos) && (Item2.right >= xPos) && (Item2.top <= yPos) && (Item2.bottom >= yPos))
+
+			{
+
+				if (ItemClick[4] == true)
+
+				{
+
+					sndPlaySoundA("goodclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notGood = true;
+
+					GoodPeople += 1;
+
+
+
+					if (GoodPeople == 1) { GoodPeo[0] = true; PrintPeoPle[0] = 3; }
+
+					if (GoodPeople == 2) { GoodPeo[1] = true; PrintPeoPle[1] = 3; }
+
+					if (GoodPeople == 3) { GoodPeo[2] = true; PrintPeoPle[2] = 3; }
+
+					if (GoodPeople == 4) { GoodPeo[3] = true; PrintPeoPle[3] = 3; }
+
+					if (GoodPeople == 5) { GoodPeo[4] = true; PrintPeoPle[4] = 3; }
+
+				}
+
+				else notGood = false;
+
+				if (ItemClick[4] == false)
+
+				{
+
+					sndPlaySoundA("badclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notBad = true;
+
+					BadPeople += 1;
+
+				}
+
+				else notBad = false;
+
+			}
+
+			//고기
+
+			if ((Item4.left <= xPos) && (Item4.right >= xPos) && (Item4.top <= yPos) && (Item4.bottom >= yPos))
+
+			{
+
+				if (ItemClick[1] == true)
+
+				{
+
+					sndPlaySoundA("goodclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notGood = true;
+
+					GoodPeople += 1;
+
+
+
+					if (GoodPeople == 1) { GoodPeo[0] = true; PrintPeoPle[0] = 4; }
+
+					if (GoodPeople == 2) { GoodPeo[1] = true; PrintPeoPle[1] = 4; }
+
+					if (GoodPeople == 3) { GoodPeo[2] = true; PrintPeoPle[2] = 4; }
+
+					if (GoodPeople == 4) { GoodPeo[3] = true; PrintPeoPle[3] = 4; }
+
+					if (GoodPeople == 5) { GoodPeo[4] = true; PrintPeoPle[4] = 4; }
+
+				}
+
+				else notGood = false;
+
+				if (ItemClick[1] == false)
+
+				{
+
+					sndPlaySoundA("badclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notBad = true;
+
+					BadPeople += 1;
+
+				}
+
+				else notBad = false;
+
+			}
+
+			//우유
+
+			if ((Item5.left <= xPos) && (Item5.right >= xPos) && (Item5.top <= yPos) && (Item5.bottom >= yPos))
+
+			{
+
+				if (ItemClick[2] == true)
+
+				{
+
+					sndPlaySoundA("goodclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notGood = true;
+
+					GoodPeople += 1;
+
+
+
+					if (GoodPeople == 1) { GoodPeo[0] = true; PrintPeoPle[0] = 5; }
+
+					if (GoodPeople == 2) { GoodPeo[1] = true; PrintPeoPle[1] = 5; }
+
+					if (GoodPeople == 3) { GoodPeo[2] = true; PrintPeoPle[2] = 5; }
+
+					if (GoodPeople == 4) { GoodPeo[3] = true; PrintPeoPle[3] = 5; }
+
+					if (GoodPeople == 5) { GoodPeo[4] = true; PrintPeoPle[4] = 5; }
+
+				}
+
+				else notGood = false;
+
+				if (ItemClick[2] == false)
+
+				{
+
+					sndPlaySoundA("badclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notBad = true;
+
+					BadPeople += 1;
+
+				}
+
+				else notBad = false;
+
+			}
+
+			//과자
+
+			if ((Item6.left <= xPos) && (Item6.right >= xPos) && (Item6.top <= yPos) && (Item6.bottom >= yPos))
+
+			{
+
+				if (ItemClick[0] == true)
+
+				{
+
+					sndPlaySoundA("goodclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notGood = true;
+
+					GoodPeople += 1;
+
+
+
+					if (GoodPeople == 1) { GoodPeo[0] = true; PrintPeoPle[0] = 6; }
+
+					if (GoodPeople == 2) { GoodPeo[1] = true; PrintPeoPle[1] = 6; }
+
+					if (GoodPeople == 3) { GoodPeo[2] = true; PrintPeoPle[2] = 6; }
+
+					if (GoodPeople == 4) { GoodPeo[3] = true; PrintPeoPle[3] = 6; }
+
+					if (GoodPeople == 5) { GoodPeo[4] = true; PrintPeoPle[4] = 6; }
+
+				}
+
+				else notGood = false;
+
+				if (ItemClick[0] == false)
+
+				{
+
+					sndPlaySoundA("badclick.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					notBad = true;
+
+					BadPeople += 1;
+
+				}
+
+				else notBad = false;
+
+			}
+
+		}
+
+		else if (msg == WM_DESTROY) PostQuitMessage(0);
+
+		//메뉴화면이면
+
+		if (g_PLAY == false)
+
+		{
+
+			//시작 UI를 눌렀다면
+
+			if ((PLAY.left <= xPos) && (PLAY.right >= xPos) && (PLAY.top <= yPos) && (PLAY.bottom >= yPos))
+
+			{
+
+				MessageBox(hWnd, "강토끼씨는 오늘도 알바를 하러 편의점에 갑니다\n※ 좌, 우로 움직여 문 앞으로 가세요 ※", "편의점 게임", MB_ICONASTERISK | MB_OK);
+
+				g_PLAY = true; //게임에 들어간다
+
+			}
+
+			//나가기 UI를 눌렀다면
+
+			if ((EXIT.left <= xPos) && (EXIT.right >= xPos) && (EXIT.top <= yPos) && (EXIT.bottom >= yPos))
+
+			{
+
+				MessageBox(hWnd, "게임을 종료합니다", "편의점 게임", MB_ICONERROR | MB_OK);
+
+				exit(0);
+
+			}
+
+		}
+
+	}
+
+	return DefWindowProc(hWnd, msg, wParam, lParam);
+
+}
+
+
+
+void CreateBuffer(HWND hWnd, HDC hDC)
+
+{
+
+	GdiplusStartupInput			gdiplusStartupInput;
+
+	ULONG_PTR					gdiplusToken;
+
+	GdiplusStartup(&gdiplusToken, &gdiplusStartupInput, NULL);
+
+
+
+	RECT rc;
+
+	GetClientRect(hWnd, &rc);
+
+
+
+	g_Bitmap = new Bitmap(rc.right - rc.left, rc.bottom - rc.top);
+
+	g_BackBuffer = new Graphics(g_Bitmap);
+
+	g_BackBuffer->SetPageUnit(Gdiplus::Unit::UnitPixel);
+
+
+
+	g_MainBuffer = new Graphics(hDC);
+
+	g_MainBuffer->SetPageUnit(Gdiplus::Unit::UnitPixel);
+
+}
+
+
+
+void ReleaseBuffer(HWND hWnd, HDC hDC)
+
+{
+
+	ReleaseDC(hWnd, hDC);
+
+
+
+	delete g_Bitmap;
+
+	delete g_BackBuffer;
+
+	delete g_MainBuffer;
+
+}
+
+
+
+void OnUpdate(HWND hWnd, DWORD tick)
+
+{
+
+	if (g_PLAY == false)
+
+	{
+
+		//배경 이미지를 그리는 부분. 0좌표, 0좌표에서 시작하고 1100의 폭과 800의 넓이만큼 그린다
+
+		g_BackImage.Draw(g_BackBuffer, 0, 0, 1100, 800);
+
+		//UI를 그린다
+
+		PlayBar.Draw(g_BackBuffer, 400, 200, 0, 0, 538, 279);
+
+		ExitBar.Draw(g_BackBuffer, 400, 440, 0, 0, 538, 277);
+
+	}
+
+	if (g_PLAY == true)
+
+	{
+
+		g_BackImage.Draw(g_BackBuffer, 0, 0, 1100, 800);
+
+
+
+		if (hWnd == NULL)
+
+			return;
+
+
+
+		BYTE key[256]; //BYTE : unsigned char
+
+		::GetKeyboardState(key);
+
+
+
+		int xDir = 0;
+
+
+
+		if (key[VK_LEFT] & 0x80) { xDir = -1; }
+
+		if (key[VK_RIGHT] & 0x80) { xDir = 1; }
+
+		g_mychar.Move(xDir, tick);
+
+
+
+		//주인공 이미지를 그리는 부분
+
+		g_mychar.image.Draw(g_BackBuffer, g_mychar.g_x, g_mychar.g_y,
+
+			g_mychar.ani[g_mychar.index].x, g_mychar.ani[g_mychar.index].y,
+
+			g_mychar.ani[g_mychar.index].width, g_mychar.ani[g_mychar.index].height);
+
+
+
+		g_Interval += tick;
+
+		g_jump += tick;
+
+		g_p += tick;
+
+
+
+		if (xDir == 1) //만약 오른쪽으로 간다면 (0~6)
+
+		{
+
+			if (g_jump >= 500)
+
+			{
+
+				sndPlaySoundA("jump.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+				g_jump = 0;
+
+			}
+
+			RIGHT = true; //오른쪽 애니메이션을 true로
+
+			LEFT = false; //왼쪽 애니메이션을 false로
+
+
+
+			if (g_mychar.g_x > 960)
+
+			{
+
+				g_mychar.g_x = 950;
+
+			}
+
+			if (g_Interval >= g_mychar.ani[g_mychar.index].ani_time) //누적시킨 값이 ani_time초를 넘으면
+
+			{
+
+				g_Interval = 0; // 0으로 초기화시켜 다음 애니메이션으로 넘어갈 수 있게 함
+
+				g_mychar.index++; //다음 애니메이션을 불러옴
+
+				if (g_mychar.index >= g_mychar.nFrame - 6) //만약 오른쪽 프레임을 다 돌았다면 (6)
+
+				{
+
+					g_mychar.index = 0; //처음 애니메이션으로 돌아감 (0)
+
+				}
+
+			}
+
+		}
+
+		if (xDir == -1) //만약 왼쪽으로 간다면 (6~12)
+
+		{
+
+			if (g_jump >= 500)
+
+			{
+
+				sndPlaySoundA("jump.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+				g_jump = 0;
+
+			}
+
+			LEFT = true; //왼쪽 애니메이션을 true로
+
+			RIGHT = false; //오른쪽 애니메이션을 false로
+
+
+
+			if (g_mychar.g_x < 0)
+
+			{
+
+				g_mychar.g_x = 10;
+
+			}
+
+			if (g_Interval >= g_mychar.ani[g_mychar.index].ani_time) //누적시킨 값이 ani_time초를 넘으면
+
+			{
+
+				g_Interval = 0; // 0으로 초기화시켜 다음 애니메이션으로 넘어갈 수 있게 함
+
+
+
+				g_mychar.index--; //다음 애니메이션을 불러옴
+
+				if (g_mychar.index <= g_mychar.nFrame - 6) //만약 왼쪽 프레임을 다 돌았다면 (6)
+
+				{
+
+					g_mychar.index = g_mychar.nFrame - 1; //처음 애니메이션으로 돌아감 (12)
+
+				}
+
+			}
+
+		}
+
+		//게임 시작시 아무 키보드도 누르지 않았을 때
+
+		if (g_Interval >= g_mychar.ani[g_mychar.index].ani_time && RIGHT == true)
+
+		{
+
+			g_Interval = 0;
+
+
+
+			g_mychar.index++;
+
+			if (g_mychar.index >= g_mychar.nFrame - 6)
+
+			{
+
+				g_mychar.index = 0;
+
+			}
+
+		}
+
+		if (g_Interval >= g_mychar.ani[g_mychar.index].ani_time && LEFT == true)
+
+		{
+
+			g_Interval = 0;
+
+
+
+			g_mychar.index--;
+
+			if (g_mychar.index <= g_mychar.nFrame - 6)
+
+			{
+
+				g_mychar.index = g_mychar.nFrame - 1;
+
+			}
+
+		}
+
+		if (g_mychar.g_x > 550 && g_mychar.g_x < 560) //만약 문 앞에 도달했다면
+
+		{
+
+			//ok를 눌렀다면
+
+			if (MessageBox(hWnd, "편의점으로 들어가시겠습니까?\n ※ 손님이 원하는 물건을 클릭하세요 ※\n ※ 클릭을 세번 틀리면 패배 ※\n ※ 스테이지 3까지 클리어하면 성공※", "입장", MB_ICONQUESTION | MB_YESNO) == IDYES)
+
+			{
+
+				Input = true;
+
+				g_mychar.g_x = 0;
+
+				mciSendCommandW(dwID, MCI_CLOSE, 0, NULL);
+
+			}
+
+			//no를 눌렀다면
+
+			else
+
+			{
+
+				Input = false;
+
+
+
+				if (g_mychar.g_x > 550) { g_mychar.g_x = 600; } // ->
+
+				if (g_mychar.g_x <= 550) { g_mychar.g_x = 500; } // <-
+
+			}
+
+		}
+
+		if (Input == true) //맵 2에 들어섰다면
+
+		{
+
+			mciOpen.lpstrElementName = "game.mp3"; //맵2
+
+			mciSendCommand(NULL, MCI_OPEN, MCI_OPEN_ELEMENT | MCI_OPEN_TYPE, (DWORD)(LPVOID)& mciOpen);
+
+			dwID = mciOpen.wDeviceID;
+
+			mciSendCommand(dwID, MCI_PLAY, MCI_DGV_PLAY_REPEAT, (DWORD)(LPVOID)& m_mciPlayParms);
+
+
+
+			srand((unsigned)time(NULL)); //랜덤 값을 위함
+
+
+
+			g_CounterImage.Draw(g_BackBuffer, 0, 0, 1100, 800); //맵2 배경 이미지 그리기
+
+
+
+			//만족, 불만족 손님 수 윈도우에 출력
+
+			HDC hdc;
+
+			hdc = GetDC(hWnd);
+
+			char buff[128];
+
+			wsprintf(buff, "만족시킨 손님 수 >> %d        불만족시킨 손님 수 >> %d", GoodPeople, BadPeople);
+
+			SetWindowText(hWnd, buff);
+
+
+
+			//물건 그리기
+
+			if (OutItem == false)
+
+			{
+
+				for (int i = 0; i < 10; i++)
+
+				{
+
+					int k = rand() % 6; //0~5중에서 랜덤으로 k값 생성
+
+					num = k;
+
+					OutItem = true; //안 돌린다
+
+					//num에 따라 손님, 아이템 좌표를 지정하고 해당되는 아이템을 true로 바꾼다
+
+					if (num == 0) { X = 317; Y = 319; W = 160; H = 268; i_x = 0; i_y = 0; i_w = 164; i_h = 144; ItemClick[0] = true; }//히퍼 + 빵
+
+					else ItemClick[0] = false;
+
+					if (num == 1) { X = 0; Y = 314; W = 165; H = 262; i_x = 0; i_y = 0; i_w = 251; i_h = 190; ItemClick[1] = true; }//꽃 + 햄버거
+
+					else ItemClick[1] = false;
+
+					if (num == 2) { X = 161; Y = 617; W = 149; H = 271; i_x = 0; i_y = 0; i_w = 183; i_h = 146; ItemClick[2] = true; }//오징어 + 주스
+
+					else ItemClick[2] = false;
+
+					if (num == 3) { X = 1752; Y = 888; W = 139; H = 216; i_x = 0; i_y = 0; i_w = 155; i_h = 137; ItemClick[3] = true; }//빨간 여자 + 고기
+
+					else ItemClick[3] = false;
+
+					if (num == 4) { X = 1550; Y = 349; W = 132; H = 221; i_x = 0; i_y = 0; i_w = 113; i_h = 172; ItemClick[4] = true; }//구름탄 거북이 + 우유
+
+					else ItemClick[4] = false;
+
+					if (num == 5) { X = 308; Y = 714; W = 150; H = 173; i_x = 0; i_y = 0; i_w = 141; i_h = 254; ItemClick[5] = true; }//물고기 + 과자
+
+					else ItemClick[5] = false;
+
+				}
+
+			}
+
+			if (OutItem == true)
+
+			{
+
+				//아이템 그리기
+
+				g_item[num].Item.Draw(g_BackBuffer, g_item[num].x, g_item[num].y, i_x, i_y, i_w, i_h); //k번의 아이템 출력
+
+				//손님 그리기
+
+				g_People.people.Draw(g_BackBuffer, g_People.p_x, g_People.p_y, X, Y, W, H); //손님 출력
+
+
+
+				if (stage_1 == true)
+
+				{
+
+					g_item[num].x += 30;
+
+					g_People.p_x += 30;
+
+				}
+
+				if (stage_2 == true)
+
+				{
+
+					g_item[num].x += 70;
+
+					g_People.p_x += 70;
+
+				}
+
+				if (stage_3 == true)
+
+				{
+
+					g_item[num].x += 110;
+
+					g_People.p_x += 110;
+
+				}
+
+				if (g_item[num].x > 1100) //화면 밖으로 가면
+
+				{
+
+					g_item[num].x = 0; //x를 0으로 초기화 시키고
+
+					g_People.p_x = 0;
+
+					OutItem = false; //다시 돌린다
+
+					//맞추거나 틀린 것 없이 화면을 나가면
+
+					if (notGood == false && notBad == false)
+
+					{
+
+						BadPeople += 1;
+
+					}
+
+				}
+
+			}
+
+			//첫번째 손님 이미지
+
+			if (GoodPeo[0] == true)
+
+			{
+
+				if (PrintPeoPle[0] == 1) { Fish.Draw(g_BackBuffer, 40, 662, 0, 0, 100, 170); }//물고기
+
+				if (PrintPeoPle[0] == 2) { Woman.Draw(g_BackBuffer, 40, 660, 0, 0, 100, 170); }//여자
+
+				if (PrintPeoPle[0] == 3) { Turtle.Draw(g_BackBuffer, 40, 640, 0, 0, 100, 170); }//거북이
+
+				if (PrintPeoPle[0] == 4) { Flower.Draw(g_BackBuffer, 40, 650, 0, 0, 100, 170); }//꽃
+
+				if (PrintPeoPle[0] == 5) { Squid.Draw(g_BackBuffer, 40, 640, 0, 0, 100, 170); }//오징어
+
+				if (PrintPeoPle[0] == 6) { Hiper.Draw(g_BackBuffer, 40, 640, 0, 0, 100, 170); }//히퍼
+
+			}
+
+			//두번째 손님 이미지
+
+			if (GoodPeo[1] == true)
+
+			{
+
+				if (PrintPeoPle[1] == 1) { Fish.Draw(g_BackBuffer, 120, 662, 0, 0, 100, 170); }//물고기
+
+				if (PrintPeoPle[1] == 2) { Woman.Draw(g_BackBuffer, 120, 660, 0, 0, 100, 170); }//여자
+
+				if (PrintPeoPle[1] == 3) { Turtle.Draw(g_BackBuffer, 120, 640, 0, 0, 100, 170); }//거북이
+
+				if (PrintPeoPle[1] == 4) { Flower.Draw(g_BackBuffer, 120, 650, 0, 0, 100, 170); }//꽃
+
+				if (PrintPeoPle[1] == 5) { Squid.Draw(g_BackBuffer, 120, 640, 0, 0, 100, 170); }//오징어
+
+				if (PrintPeoPle[1] == 6) { Hiper.Draw(g_BackBuffer, 120, 640, 0, 0, 100, 170); }//히퍼
+
+			}
+
+			//세번째 손님 이미지
+
+			if (GoodPeo[2] == true)
+
+			{
+
+				if (PrintPeoPle[2] == 1) { Fish.Draw(g_BackBuffer, 200, 662, 0, 0, 100, 170); }//물고기
+
+				if (PrintPeoPle[2] == 2) { Woman.Draw(g_BackBuffer, 200, 660, 0, 0, 100, 170); }//여자
+
+				if (PrintPeoPle[2] == 3) { Turtle.Draw(g_BackBuffer, 200, 640, 0, 0, 100, 170); }//거북이
+
+				if (PrintPeoPle[2] == 4) { Flower.Draw(g_BackBuffer, 200, 650, 0, 0, 100, 170); }//꽃
+
+				if (PrintPeoPle[2] == 5) { Squid.Draw(g_BackBuffer, 200, 640, 0, 0, 100, 170); }//오징어
+
+				if (PrintPeoPle[2] == 6) { Hiper.Draw(g_BackBuffer, 200, 640, 0, 0, 100, 170); }//히퍼
+
+			}
+
+			//네번째 손님 이미지
+
+			if (GoodPeo[3] == true)
+
+			{
+
+				if (PrintPeoPle[3] == 1) { Fish.Draw(g_BackBuffer, 280, 662, 0, 0, 100, 170); }//물고기
+
+				if (PrintPeoPle[3] == 2) { Woman.Draw(g_BackBuffer, 280, 660, 0, 0, 100, 170); }//여자
+
+				if (PrintPeoPle[3] == 3) { Turtle.Draw(g_BackBuffer, 280, 640, 0, 0, 100, 170); }//거북이
+
+				if (PrintPeoPle[3] == 4) { Flower.Draw(g_BackBuffer, 280, 650, 0, 0, 100, 170); }//꽃
+
+				if (PrintPeoPle[3] == 5) { Squid.Draw(g_BackBuffer, 280, 640, 0, 0, 100, 170); }//오징어
+
+				if (PrintPeoPle[3] == 6) { Hiper.Draw(g_BackBuffer, 280, 640, 0, 0, 100, 170); }//히퍼
+
+			}
+
+			//다섯번째 손님 이미지
+
+			if (GoodPeo[4] == true)
+
+			{
+
+				if (PrintPeoPle[4] == 1) { Fish.Draw(g_BackBuffer, 360, 662, 0, 0, 100, 170); }//물고기
+
+				if (PrintPeoPle[4] == 2) { Woman.Draw(g_BackBuffer, 360, 660, 0, 0, 100, 170); }//여자
+
+				if (PrintPeoPle[4] == 3) { Turtle.Draw(g_BackBuffer, 360, 640, 0, 0, 100, 170); }//거북이
+
+				if (PrintPeoPle[4] == 4) { Flower.Draw(g_BackBuffer, 360, 650, 0, 0, 100, 170); }//꽃
+
+				if (PrintPeoPle[4] == 5) { Squid.Draw(g_BackBuffer, 360, 640, 0, 0, 100, 170); }//오징어
+
+				if (PrintPeoPle[4] == 6) { Hiper.Draw(g_BackBuffer, 360, 640, 0, 0, 100, 170); }//히퍼		
+
+			}
+
+			//만약 3명 맞췄다면 스테이지 2로 들어가기
+
+			if (GoodPeo[2] == true && GoodPeo_4 == false && fullGoodPeo[0] == false)
+
+			{
+
+				g_p = 0; //시간을 0으로 만들고
+
+				fullGoodPeo[0] = true; //fullGoodPeo을 true로 바꿔라
+
+			}
+
+			if (GoodPeople >= 3 && stage_1 == true)
+
+			{
+
+				if (g_p >= 100)
+
+				{
+
+					//스테이지 2로 바꾸기
+
+					stage_2 = true;
+
+					stage_1 = false;
+
+					//이미지 삭제하기
+
+					GoodPeo[0] = false;
+
+					GoodPeo[1] = false;
+
+					GoodPeo[2] = false;
+
+					//0으로 초기화
+
+					GoodPeople = 0;
+
+					MessageBox(hWnd, "▶ 스테이지 1 클리어 ◀\n※ 손님의 이동속도가 증가합니다 ※", "편의점 게임", MB_ICONWARNING | MB_OK);
+
+				}
+
+			}
+
+			//만약 4명 맞췄다면 스테이지 3으로 들어가기
+
+			if (GoodPeo[3] == true && GoodPeo_4 == false && fullGoodPeo[1] == false)
+
+			{
+
+				g_p = 0;
+
+				fullGoodPeo[1] = true;
+
+			}
+
+			if (GoodPeople >= 4 && stage_2 == true)
+
+			{
+
+				if (g_p >= 100)
+
+				{
+
+					stage_3 = true;
+
+					stage_2 = false;
+
+					GoodPeo[0] = false;
+
+					GoodPeo[1] = false;
+
+					GoodPeo[2] = false;
+
+					GoodPeo[3] = false;
+
+					GoodPeople = 0;
+
+					MessageBox(hWnd, "▶ 스테이지 2 클리어 ◀\n※ 손님의 이동속도가 더욱 증가합니다 ※", "편의점 게임", MB_ICONWARNING | MB_OK);
+
+				}
+
+			}
+
+			//5번째가 출력되야하고, GoodPeo_4가 false이면서 fullGoodPeo이 false이면
+
+			if (GoodPeo[4] == true && GoodPeo_4 == false && fullGoodPeo[2] == false)
+
+			{
+
+				g_p = 0;
+
+				fullGoodPeo[2] = true;
+
+			}
+
+			//5명 맞췄고 스테이지 3이면
+
+			if (GoodPeople >= 5 && stage_3 == true)
+
+			{
+
+				//1초가 지나면 게임을 끝내라 (이미지 출력 전에 끝나는 것을 방지하기 위해 만듦)
+
+				if (g_p >= 100)
+
+				{
+
+					mciSendCommandW(dwID, MCI_CLOSE, 0, NULL);
+
+
+
+					sndPlaySoundA("clear.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					MessageBox(hWnd, "▶ 성공 ◀\n※ 오늘도 무사히 일을 마쳤습니다 ※\n※ 강토끼씨는 집으로 돌아갑니다 ※", "편의점 게임", MB_ICONASTERISK | MB_OK);
+
+					exit(0);
+
+				}
+
+			}
+
+			//3번 틀렸다면
+
+			if (BadPeople >= 3)
+
+			{
+
+				if (g_p >= 100)
+
+				{
+
+					mciSendCommandW(dwID, MCI_CLOSE, 0, NULL);
+
+
+
+					sndPlaySoundA("failure.wav", SND_ASYNC | SND_NODEFAULT | SND_ASYNC);
+
+
+
+					MessageBox(hWnd, "▶ 실패 ◀\n※ 사장님이 당신을 해고했습니다 ※\n※ 강토끼씨는 백수가 되었습니다 ※", "편의점 게임", MB_ICONWARNING | MB_OK);
+
+					exit(0);
+
+				}
+
+			}
+
+		}
+
+	}
+
+}
